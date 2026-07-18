@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rasto de Preços</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="theme-color" content="#2B2B28" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Preços" />
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #F2EFE6; --surface: rgba(255,255,255,0.6); --surface-solid: #fff;
+    --text: #2B2B28; --muted: #6B6A62; --border: #C9C6B8; --border-soft: #DEDBCD; --border-faint: #EEEBDE;
+    --accent-dark: #2B2B28; --green: #2F6B4F; --red: #B4483C; --yellow-bg: #FBF3D6; --yellow-border: #E3C24E;
+    --yellow-text: #8A5A0B; --purple: #7F77DD; --orange: #D85A30;
+  }
+  [data-theme="dark"] {
+    --bg: #1C1C1A; --surface: rgba(255,255,255,0.06); --surface-solid: #2A2A27;
+    --text: #EDEAE0; --muted: #9B998D; --border: #45443C; --border-soft: #3A3933; --border-faint: #333229;
+    --accent-dark: #EDEAE0; --yellow-bg: rgba(244,211,94,0.12); --yellow-border: #6b5a26; --yellow-text: #E3C24E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; transition: background .2s, color .2s; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .logo { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-dark); color: var(--bg);
+          display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  h1 { font-size: 17px; font-weight: 600; margin: 0; line-height: 1.2; }
+  .sub { font-size: 12px; color: var(--muted); margin: 0; }
+  nav { display: flex; gap: 4px; border-bottom: 2px dashed var(--border); padding-bottom: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  nav button { border: none; background: none; padding: 6px 12px; font-size: 13px; border-radius: 6px 6px 0 0; color: var(--muted); cursor: pointer; }
+  nav button.active { background: var(--accent-dark); color: var(--bg); font-weight: 500; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  input, select, textarea, button.btn {
+    font-family: inherit; font-size: 13px; padding: 7px 9px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface-solid); color: var(--text);
+  }
+  textarea { width: 100%; min-height: 90px; font-family: ui-monospace, monospace; font-size: 12px; }
+  button.btn { cursor: pointer; }
+  .btn-dark { background: var(--accent-dark); color: var(--bg); border: none; font-weight: 500; }
+  .btn-green { background: var(--green); color: #fff; border: none; font-weight: 500; }
+  .btn-ghost { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .icon-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; }
+  .row { display: flex; gap: 10px; }
+  .field { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .field label { font-size: 11px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--muted); font-weight: 400; border-bottom: 1px solid var(--border-soft); padding: 4px 0; }
+  td { padding: 4px 0; border-bottom: 1px solid var(--border-faint); font-family: ui-monospace, monospace; }
+  td.txt { font-family: inherit; }
+  .item-row { border: 1px solid var(--border-soft); background: var(--surface-solid); border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+  .item-row.duvida { border-color: var(--yellow-border); background: var(--yellow-bg); }
+  .item-row .top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .item-row .top input { flex: 1; min-width: 90px; }
+  .item-row .meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; margin-top: 6px; }
+  .chip { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); background: var(--surface-solid); cursor: pointer; margin: 2px; color: var(--text); }
+  .chip.active { background: var(--accent-dark); color: var(--bg); border-color: var(--accent-dark); }
+  .stat { background: var(--surface); border-radius: 10px; padding: 10px; }
+  .stat .label { font-size: 11px; color: var(--muted); }
+  .stat .value { font-size: 20px; font-weight: 500; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .warn-box { background: var(--yellow-bg); border: 1px solid var(--yellow-border); color: var(--yellow-text); padding: 8px 10px; border-radius: 6px; font-size: 13px; }
+  .auth-box { max-width: 320px; margin: 60px auto; display: flex; flex-direction: column; gap: 10px; }
+  a.linklike { color: var(--text); text-decoration: underline; cursor: pointer; }
+  .chart-wrap { position: relative; width: 100%; height: 220px; margin: 10px 0; }
+  .rank-list { list-style: none; padding: 0; margin: 6px 0; font-size: 13px; }
+  .rank-list li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-faint); }
+</style>
+</head>
+<body>
+<div id="app" class="wrap"></div>
+
+<script>
+/* ====== CONFIGURA AQUI ====== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCMi8WCk8g2INhfb5Swu-YgeFHLX9E96bE",
+  authDomain: "rasto-precos.firebaseapp.com",
+  projectId: "rasto-precos",
+  storageBucket: "rasto-precos.firebasestorage.app",
+  messagingSenderId: "700525431109",
+  appId: "1:700525431109:web:2da72cdb59e2537b9b962c"
+};
+/* ============================ */
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+const CATEGORIAS = ["Fruta e Legumes","Talho e Peixe","Laticínios e Ovos","Padaria","Mercearia",
+  "Congelados","Bebidas","Limpeza","Higiene","Bebé","Outros"];
+const PALETA = ["#2F6B4F","#B4483C","#7F77DD","#D85A30","#3B6FA6","#A0522D","#4B8B8B","#8A5A0B","#6B6A62","#B48CC9"];
+
+let state = {
+  user: null,
+  authMode: "login",
+  authError: null,
+  tab: "nova",
+  theme: localStorage.getItem("theme") || "light",
+  invoices: [],
+  products: [],
+  draft: null,
+  pasteText: "",
+  categoriaSelecionada: null,
+  produtoFiltroCategoria: "all",
+  produtoSelecionado: null,
+  produtoQuery: ""
+};
+document.documentElement.setAttribute("data-theme", state.theme);
+
+let charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+function normalize(s) {
+  return (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/\s+/g, " ").trim();
+}
+function money(n) {
+  const v = Number(n);
+  if (!isFinite(v)) return "--";
+  return v.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function findMatchingProduct(name, products) {
+  const n = normalize(name);
+  if (!n) return null;
+  for (const p of products) {
+    if (normalize(p.name) === n) return p.id;
+    if ((p.aliases || []).some((a) => normalize(a) === n)) return p.id;
+  }
+  let best = null;
+  for (const p of products) {
+    const pn = normalize(p.name);
+    if (pn.length > 3 && (n.includes(pn) || pn.includes(n))) best = p.id;
+  }
+  return best;
+}
+function esc(s) {
+  return (s ?? "").toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+/* -- preço normalizado: converte g->kg e ml->l para poder comparar entre compras
+      registadas em unidades diferentes do mesmo tipo de artigo -- */
+function normalizedPrice(it) {
+  const u = (it.unidade || "").toLowerCase();
+  if (u === "g" || u === "ml") return (Number(it.preco_unitario) || 0) * 1000;
+  return Number(it.preco_unitario) || 0;
+}
+function normalizedUnitLabel(unidade) {
+  const u = (unidade || "").toLowerCase();
+  if (u === "kg" || u === "g") return "€/kg";
+  if (u === "l" || u === "ml") return "€/l";
+  return "€/un";
+}
+
+function toggleTheme() {
+  state.theme = state.theme === "light" ? "dark" : "light";
+  localStorage.setItem("theme", state.theme);
+  document.documentElement.setAttribute("data-theme", state.theme);
+  render();
+}
+
+/* ---------- AUTH ---------- */
+
+auth.onAuthStateChanged((user) => {
+  state.user = user;
+  if (user) attachListeners(); else detachListeners();
+  render();
+});
+
+function attachListeners() {
+  const uidStr = state.user.uid;
+  db.collection("users").doc(uidStr).collection("invoices").onSnapshot((snap) => {
+    state.invoices = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    render();
+  });
+  db.collection("users").doc(uidStr).collection("products").onSnapshot((snap) => {
+    state.products = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    render();
+  });
+}
+function detachListeners() { state.invoices = []; state.products = []; }
+
+function doLogin() {
+  const email = document.getElementById("auth-email").value.trim();
+  const pass = document.getElementById("auth-pass").value;
+  state.authError = null;
+  const fn = state.authMode === "login"
+    ? auth.signInWithEmailAndPassword(email, pass)
+    : auth.createUserWithEmailAndPassword(email, pass);
+  fn.catch((e) => { state.authError = e.message; render(); });
+}
+function toggleAuthMode() { state.authMode = state.authMode === "login" ? "signup" : "login"; render(); }
+function doLogout() { auth.signOut(); }
+
+/* ---------- SAVE INVOICE ---------- */
+
+async function saveInvoice() {
+  const d = state.draft;
+  if (!d || !d.items.length) return;
+
+  // aviso de possível fatura duplicada
+  const totalDraft = Number(d.items.reduce((s,i)=>s+(Number(i.preco_total)||0),0).toFixed(2));
+  const possivelDuplicado = state.invoices.some((inv) =>
+    normalize(inv.loja) === normalize(d.loja) && inv.data === d.data && Math.abs(inv.total - totalDraft) < 0.01
+  );
+  if (possivelDuplicado) {
+    if (!confirm("Já existe uma fatura guardada com a mesma loja, data e total. Guardar mesmo assim?")) return;
+  }
+
+  const uidStr = state.user.uid;
+  const batch = db.batch();
+  const finalItems = [];
+  for (const it of d.items) {
+    let pid = it.productId;
+    if (it.isNewProduct) {
+      pid = pid || uid();
+      const ref = db.collection("users").doc(uidStr).collection("products").doc(pid);
+      batch.set(ref, {
+        name: it.nome, aliases: [it.nome], category: it.categoria || "Outros"
+      }, { merge: true });
+    } else if (pid) {
+      const prod = state.products.find((p) => p.id === pid);
+      if (prod && !(prod.aliases || []).some((a) => normalize(a) === normalize(it.nome))) {
+        const ref = db.collection("users").doc(uidStr).collection("products").doc(pid);
+        batch.update(ref, { aliases: firebase.firestore.FieldValue.arrayUnion(it.nome) });
+      }
+    }
+    finalItems.push({
+      productId: pid, nome: it.nome,
+      quantidade: Number(it.quantidade) || 1, unidade: it.unidade,
+      preco_unitario: Number(it.preco_unitario) || 0, preco_total: Number(it.preco_total) || 0
+    });
+  }
+  const invRef = db.collection("users").doc(uidStr).collection("invoices").doc();
+  const total = finalItems.reduce((s, i) => s + (i.preco_total || 0), 0);
+  batch.set(invRef, {
+    loja: d.loja || "Loja", data: d.data || new Date().toISOString().slice(0, 10),
+    criadoEm: new Date().toISOString(), itens: finalItems, total, notas: d.notas || ""
+  });
+  await batch.commit();
+  state.draft = null;
+  state.pasteText = "";
+  render();
+}
+
+function deleteInvoice(id) {
+  if (!confirm("Apagar esta fatura?")) return;
+  db.collection("users").doc(state.user.uid).collection("invoices").doc(id).delete();
+}
+
+function updateProductCategory(pid, category) {
+  db.collection("users").doc(state.user.uid).collection("products").doc(pid).update({ category });
+}
+
+/* ---------- DRAFT (nova fatura) ---------- */
+
+function parsePaste() {
+  try {
+    const raw = state.pasteText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(raw);
+    const items = (parsed.itens || []).map((it) => {
+      const productId = findMatchingProduct(it.nome, state.products);
+      return {
+        key: uid(), nome: it.nome || "", quantidade: it.quantidade ?? 1,
+        unidade: it.unidade || "un", preco_unitario: it.preco_unitario ?? 0,
+        preco_total: it.preco_total ?? 0, duvida: !!it.duvida, nota: it.nota || "",
+        productId, isNewProduct: !productId,
+        categoria: CATEGORIAS.includes(it.categoria) ? it.categoria : "Outros"
+      };
+    });
+    state.draft = { loja: parsed.loja || "", data: parsed.data || "", notas: "", items };
+  } catch (e) {
+    alert("Não consegui ler esse texto como JSON. Confirma que colaste o bloco todo, tal como o Claude o escreveu.");
+  }
+}
+
+function newManualDraft() {
+  state.draft = { loja: "", data: "", notas: "", items: [] };
+  render();
+}
+
+function addManualItem() {
+  state.draft.items.push({
+    key: uid(), nome: "", quantidade: 1, unidade: "un", preco_unitario: 0, preco_total: 0,
+    duvida: false, nota: "", productId: null, isNewProduct: true, categoria: "Outros"
+  });
+  render();
+}
+function removeDraftItem(key) {
+  state.draft.items = state.draft.items.filter((it) => it.key !== key);
+  render();
+}
+function updateDraftField(field, value) { state.draft[field] = value; }
+function updateDraftItem(key, field, value) {
+  const it = state.draft.items.find((i) => i.key === key);
+  if (it) it[field] = value;
+}
+function setDraftItemProduct(key, value) {
+  const it = state.draft.items.find((i) => i.key === key);
+  if (!it) return;
+  if (value === "__new__") { it.productId = null; it.isNewProduct = true; }
+  else { it.productId = value; it.isNewProduct = false; }
+  render();
+}
+
+/* ---------- HISTÓRICO / ANÁLISES ---------- */
+
+function getProductHistory(productId) {
+  const rows = [];
+  for (const inv of state.invoices) {
+    for (const it of inv.itens) {
+      if (it.productId === productId) {
+        rows.push({ data: inv.data, loja: inv.loja, preco: normalizedPrice(it), unidade: it.unidade });
+      }
+    }
+  }
+  return rows.sort((a,b) => (a.data > b.data ? 1 : -1));
+}
+
+function getStoreComparison(productId) {
+  const rows = getProductHistory(productId);
+  const byStore = {};
+  for (const r of rows) {
+    if (!byStore[r.loja]) byStore[r.loja] = { total: 0, count: 0 };
+    byStore[r.loja].total += r.preco; byStore[r.loja].count += 1;
+  }
+  return Object.entries(byStore)
+    .map(([loja, v]) => ({ loja, media: v.total / v.count }))
+    .sort((a, b) => a.media - b.media);
+}
+
+function yearComparisonFromHistory(hist) {
+  const now = new Date();
+  const thisYear = now.getFullYear(), lastYear = thisYear - 1;
+  const byYear = {};
+  for (const h of hist) {
+    const y = Number((h.data || "").slice(0, 4));
+    if (!y) continue;
+    if (!byYear[y]) byYear[y] = { total: 0, count: 0 };
+    byYear[y].total += h.preco; byYear[y].count += 1;
+  }
+  const a = byYear[thisYear], b = byYear[lastYear];
+  if (!a || !b) return null;
+  return { thisYear, lastYear, mediaThis: a.total / a.count, mediaLast: b.total / b.count };
+}
+
+function priceDeviationBadge(it) {
+  if (!it.productId) return "";
+  const hist = getProductHistory(it.productId);
+  if (!hist.length) return "";
+  const avg = hist.reduce((s, h) => s + h.preco, 0) / hist.length;
+  if (!avg) return "";
+  const cur = normalizedPrice(it);
+  const diff = ((cur - avg) / avg) * 100;
+  if (Math.abs(diff) < 15) return "";
+  const color = diff > 0 ? "var(--red)" : "var(--green)";
+  return `<div style="color:${color}; font-size:11px; margin-top:4px;">${diff > 0 ? "▲" : "▼"} ${Math.abs(diff).toFixed(0)}% vs média histórica (${money(avg)} ${normalizedUnitLabel(it.unidade)})</div>`;
+}
+
+function computeFrequency(productId) {
+  const hist = getProductHistory(productId);
+  if (hist.length < 2) return null;
+  const dates = hist.map((h) => new Date(h.data + "T00:00:00")).filter((d) => !isNaN(d));
+  dates.sort((a, b) => a - b);
+  let totalDays = 0, count = 0;
+  for (let i = 1; i < dates.length; i++) {
+    const diff = (dates[i] - dates[i - 1]) / (1000 * 60 * 60 * 24);
+    if (diff > 0) { totalDays += diff; count++; }
+  }
+  if (!count) return null;
+  const avgInterval = totalDays / count;
+  const last = dates[dates.length - 1];
+  const daysSince = (new Date() - last) / (1000 * 60 * 60 * 24);
+  return {
+    avgInterval, daysSince,
+    lastDate: hist[hist.length - 1].data,
+    overdueRatio: avgInterval > 0 ? daysSince / avgInterval : 0,
+    amostras: dates.length
+  };
+}
+
+function computeShoppingList() {
+  const results = [];
+  for (const p of state.products) {
+    const freq = computeFrequency(p.id);
+    if (freq && freq.overdueRatio >= 1) {
+      results.push({ nome: p.name, categoria: p.category || "Outros", ...freq });
+    }
+  }
+  return results.sort((a, b) => b.overdueRatio - a.overdueRatio);
+}
+
+function computeRanking() {
+  const results = [];
+  for (const p of state.products) {
+    const hist = getProductHistory(p.id);
+    if (hist.length < 2) continue;
+    const first = hist[0].preco, last = hist[hist.length - 1].preco;
+    if (!first) continue;
+    const change = ((last - first) / first) * 100;
+    results.push({ nome: p.name, change });
+  }
+  const subiram = [...results].sort((a, b) => b.change - a.change).slice(0, 5);
+  const desceram = [...results].sort((a, b) => a.change - b.change).slice(0, 5);
+  return { subiram, desceram };
+}
+
+/* ---------- EXPORTAR EXCEL ---------- */
+
+function exportExcel() {
+  const rows = [];
+  for (const inv of state.invoices) {
+    for (const it of inv.itens) {
+      const prod = state.products.find((p) => p.id === it.productId);
+      rows.push({
+        data: inv.data, loja: inv.loja, artigo: it.nome, categoria: prod?.category || "",
+        quantidade: it.quantidade, unidade: it.unidade,
+        preco_unitario: it.preco_unitario, preco_total: it.preco_total, notas_fatura: inv.notas || ""
+      });
+    }
+  }
+  const wsInvoices = XLSX.utils.json_to_sheet(rows);
+  const wsProducts = XLSX.utils.json_to_sheet(state.products.map((p) => ({
+    nome: p.name, categoria: p.category || "Outros", aliases: (p.aliases || []).join(", ")
+  })));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsInvoices, "Faturas");
+  XLSX.utils.book_append_sheet(wb, wsProducts, "Produtos");
+  XLSX.writeFile(wb, "rasto-precos-" + new Date().toISOString().slice(0, 10) + ".xlsx");
+}
+
+/* ---------- RENDER ---------- */
+
+function render() {
+  const app = document.getElementById("app");
+  if (!state.user) { app.innerHTML = renderAuth(); return; }
+  app.innerHTML = `
+    <header>
+      <div class="logo">🧾</div>
+      <div style="flex:1">
+        <h1>Rasto de Preços</h1>
+        <p class="sub">${esc(state.user.email)}</p>
+      </div>
+      <button class="icon-btn" onclick="toggleTheme()" title="alternar tema">${state.theme === "light" ? "🌙" : "☀️"}</button>
+      <button class="btn-ghost" onclick="doLogout()">sair</button>
+    </header>
+    <nav>
+      ${tabBtn("nova","Nova fatura")}
+      ${tabBtn("faturas","Faturas")}
+      ${tabBtn("produtos","Produtos")}
+      ${tabBtn("categorias","Categorias")}
+      ${tabBtn("lista","Lista de compras")}
+      ${tabBtn("resumo","Resumo")}
+    </nav>
+    <div id="tab-content"></div>
+  `;
+  const content = document.getElementById("tab-content");
+  if (state.tab === "nova") content.innerHTML = renderNova();
+  if (state.tab === "faturas") content.innerHTML = renderFaturas();
+  if (state.tab === "produtos") content.innerHTML = renderProdutos();
+  if (state.tab === "categorias") content.innerHTML = renderCategorias();
+  if (state.tab === "lista") content.innerHTML = renderLista();
+  if (state.tab === "resumo") content.innerHTML = renderResumo();
+
+  if (state.tab === "produtos" && state.produtoSelecionado) drawProductCharts();
+  if (state.tab === "categorias" && state.categoriaSelecionada) drawCategoryCharts();
+  if (state.tab === "resumo") { drawResumoChart(); drawCategoriaPieChart(); }
+}
+
+function tabBtn(key, label) {
+  return `<button class="${state.tab === key ? "active" : ""}" onclick="switchTab('${key}')">${label}</button>`;
+}
+function switchTab(t) { state.tab = t; render(); }
+
+function renderAuth() {
+  return `
+    <div class="auth-box">
+      <div class="logo" style="margin:0 auto 8px">🧾</div>
+      <h1 style="text-align:center">Rasto de Preços</h1>
+      ${state.authError ? `<p class="warn-box">${esc(state.authError)}</p>` : ""}
+      <input id="auth-email" type="email" placeholder="email" />
+      <input id="auth-pass" type="password" placeholder="palavra-passe" />
+      <button class="btn btn-dark" onclick="doLogin()">${state.authMode === "login" ? "Entrar" : "Criar conta"}</button>
+      <a class="linklike" style="text-align:center;font-size:13px" onclick="toggleAuthMode()">
+        ${state.authMode === "login" ? "ainda não tenho conta" : "já tenho conta, entrar"}
+      </a>
+    </div>
+  `;
+}
+
+function renderNova() {
+  if (!state.draft) {
+    return `
+      <div class="card">
+        <p class="muted" style="margin-top:0">
+          Envia a foto da fatura aqui no chat do Claude. Cola o bloco JSON que ele te devolver aqui:
+        </p>
+        <textarea id="paste-area" placeholder='{"loja": "...", "data": "...", "itens": [...] }'
+          oninput="state.pasteText = this.value"></textarea>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button class="btn btn-dark" onclick="parsePaste(); render();">Carregar itens colados</button>
+          <button class="btn" onclick="newManualDraft()">Começar à mão</button>
+        </div>
+      </div>
+    `;
+  }
+  const d = state.draft;
+  const dúvidas = d.items.filter((i) => i.duvida).length;
+  return `
+    <div class="card">
+      <div class="row">
+        <div class="field"><label>Loja</label>
+          <input value="${esc(d.loja)}" oninput="updateDraftField('loja', this.value)" />
+        </div>
+        <div class="field" style="max-width:150px"><label>Data</label>
+          <input type="date" value="${esc(d.data)}" oninput="updateDraftField('data', this.value)" />
+        </div>
+      </div>
+      ${dúvidas > 0 ? `<div class="warn-box" style="margin-top:10px">⚠ ${dúvidas} artigo(s) com dúvida — confirma abaixo.</div>` : ""}
+      <div style="margin-top:10px">
+        ${d.items.map(renderItemRow).join("")}
+      </div>
+      <button class="btn-ghost" onclick="addManualItem()">+ adicionar artigo à mão</button>
+      <div class="field" style="margin-top:10px">
+        <label>Notas desta fatura (opcional — ex: "tinha promoção", "desconto de cartão")</label>
+        <input value="${esc(d.notas || "")}" oninput="updateDraftField('notas', this.value)" />
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:2px dashed var(--border); padding-top:10px; margin-top:10px;">
+        <span style="font-family:ui-monospace,monospace">total: ${money(d.items.reduce((s,i)=>s+(Number(i.preco_total)||0),0))} €</span>
+        <div>
+          <button class="btn-ghost" onclick="state.draft=null; render();">cancelar</button>
+          <button class="btn btn-green" onclick="saveInvoice()">guardar fatura</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderItemRow(it) {
+  const productOptions = state.products.map((p) =>
+    `<option value="${p.id}" ${it.productId === p.id ? "selected" : ""}>${esc(p.name)}</option>`
+  ).join("");
+  return `
+    <div class="item-row ${it.duvida ? "duvida" : ""}">
+      <div class="top">
+        <input value="${esc(it.nome)}" placeholder="nome" oninput="updateDraftItem('${it.key}','nome',this.value)" />
+        <input type="number" style="width:55px" value="${it.quantidade}" oninput="updateDraftItem('${it.key}','quantidade',this.value)" />
+        <input style="width:55px" value="${esc(it.unidade)}" oninput="updateDraftItem('${it.key}','unidade',this.value)" />
+        <input type="number" step="0.01" style="width:70px" value="${it.preco_unitario}" title="preço unitário" oninput="updateDraftItem('${it.key}','preco_unitario',this.value)" />
+        <input type="number" step="0.01" style="width:70px" value="${it.preco_total}" title="preço total" oninput="updateDraftItem('${it.key}','preco_total',this.value)" />
+        <button class="btn-ghost" onclick="removeDraftItem('${it.key}'); render();">✕</button>
+      </div>
+      ${it.duvida && it.nota ? `<p class="muted" style="color:var(--yellow-text); font-size:12px; margin:6px 0 0">⚠ ${esc(it.nota)}</p>` : ""}
+      ${priceDeviationBadge(it)}
+      <div class="meta">
+        <span class="muted">produto:</span>
+        <select onchange="setDraftItemProduct('${it.key}', this.value)">
+          <option value="__new__" ${it.isNewProduct ? "selected" : ""}>+ novo (${esc(it.nome) || "sem nome"})</option>
+          ${productOptions}
+        </select>
+        ${it.isNewProduct ? `
+          <span class="muted">categoria:</span>
+          <select onchange="updateDraftItem('${it.key}','categoria',this.value)">
+            ${CATEGORIAS.map((c) => `<option value="${c}" ${it.categoria === c ? "selected" : ""}>${c}</option>`).join("")}
+          </select>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderFaturas() {
+  if (!state.invoices.length) return `<p class="muted">Ainda não guardaste nenhuma fatura.</p>`;
+  const sorted = [...state.invoices].sort((a, b) => (a.data < b.data ? 1 : -1));
+  return sorted.map((inv) => `
+    <div class="card" style="padding:0">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; cursor:pointer"
+           onclick="toggleFatura('${inv.id}')">
+        <span><strong>${esc(inv.loja)}</strong> <span class="muted">${esc(inv.data)}</span></span>
+        <span style="display:flex; align-items:center; gap:10px">
+          <span style="font-family:ui-monospace,monospace">${money(inv.total)} €</span>
+          <span onclick="event.stopPropagation(); deleteInvoice('${inv.id}')" style="color:var(--red); cursor:pointer">✕</span>
+        </span>
+      </div>
+      <div id="fatura-${inv.id}" style="display:none; padding:0 14px 12px; border-top:1px dashed var(--border)">
+        ${inv.notas ? `<p class="muted" style="font-style:italic; margin:8px 0 4px">"${esc(inv.notas)}"</p>` : ""}
+        ${inv.itens.map((it) => `
+          <div style="display:flex; justify-content:space-between; font-size:12px; font-family:ui-monospace,monospace; padding-top:6px">
+            <span style="font-family:inherit">${esc(it.nome)} <span class="muted">x${it.quantidade}</span></span>
+            <span>${money(it.preco_total)} €</span>
+          </div>`).join("")}
+      </div>
+    </div>
+  `).join("");
+}
+function toggleFatura(id) {
+  const el = document.getElementById("fatura-" + id);
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+function renderProdutos() {
+  if (!state.products.length) return `<p class="muted">Ainda não há produtos — guarda uma fatura primeiro.</p>`;
+  const filtered = state.products.filter((p) => normalize(p.name).includes(normalize(state.produtoQuery)));
+  const sel = state.products.find((p) => p.id === state.produtoSelecionado);
+  let historySection = "";
+  if (sel) {
+    const history = getProductHistory(sel.id);
+    const lojas = getStoreComparison(sel.id);
+    const yoy = yearComparisonFromHistory(history);
+    const freq = computeFrequency(sel.id);
+    historySection = `
+      <div class="card">
+        <div class="meta" style="margin-bottom:10px">
+          <span class="muted">categoria:</span>
+          <select onchange="updateProductCategory('${sel.id}', this.value)">
+            ${CATEGORIAS.map((c) => `<option value="${c}" ${((sel.category||"Outros")===c)?"selected":""}>${c}</option>`).join("")}
+          </select>
+        </div>
+        ${freq ? `
+          <p class="muted" style="margin-bottom:10px">
+            costumas comprar a cada ~${Math.round(freq.avgInterval)} dias — última vez ${esc(freq.lastDate)} (${Math.round(freq.daysSince)} dias atrás).
+            ${freq.overdueRatio >= 1 ? `<strong style="color:${freq.overdueRatio >= 1.3 ? 'var(--red)' : 'var(--yellow-text)'}"> provavelmente já precisas de comprar.</strong>` : ""}
+          </p>
+        ` : ""}
+        ${history.length ? `
+          <div class="chart-wrap"><canvas id="chart-produto-linha"></canvas></div>
+          <div class="chart-wrap" style="height:160px"><canvas id="chart-produto-mensal"></canvas></div>
+
+          ${lojas.length > 1 ? `
+            <p style="font-weight:500; margin-bottom:4px">comparação entre lojas</p>
+            <ul class="rank-list">
+              ${lojas.map((l, i) => `<li><span>${i === 0 ? "🏆 " : ""}${esc(l.loja)}</span><span>${money(l.media)} ${normalizedUnitLabel(sel.category)}</span></li>`).join("")}
+            </ul>
+          ` : ""}
+
+          ${yoy ? `
+            <p style="font-weight:500; margin:10px 0 4px">este ano vs ano passado</p>
+            <p class="muted" style="margin:0 0 8px">
+              ${yoy.thisYear}: ${money(yoy.mediaThis)} € &nbsp;|&nbsp; ${yoy.lastYear}: ${money(yoy.mediaLast)} €
+              <strong style="color:${yoy.mediaThis > yoy.mediaLast ? 'var(--red)' : 'var(--green)'}">
+                (${yoy.mediaThis > yoy.mediaLast ? "+" : ""}${(((yoy.mediaThis - yoy.mediaLast) / yoy.mediaLast) * 100).toFixed(1)}%)
+              </strong>
+            </p>
+          ` : ""}
+
+          <table>
+            <thead><tr><th>data</th><th>loja</th><th style="text-align:right">preço</th><th style="text-align:right">variação</th></tr></thead>
+            <tbody>
+              ${history.map((h, i) => {
+                const prev = history[i - 1];
+                const change = prev ? ((h.preco - prev.preco) / prev.preco) * 100 : null;
+                const color = change > 0 ? "var(--red)" : change < 0 ? "var(--green)" : "var(--muted)";
+                return `<tr><td>${esc(h.data)}</td><td class="txt">${esc(h.loja)}</td>
+                  <td style="text-align:right">${money(h.preco)} €</td>
+                  <td style="text-align:right; color:${color}">${change===null?"--":(change>0?"+":"")+change.toFixed(1)+"%"}</td></tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        ` : `<p class="muted">Sem compras registadas ainda.</p>`}
+      </div>
+    `;
+  }
+  return `
+    <input placeholder="procurar produto..." value="${esc(state.produtoQuery)}"
+      oninput="state.produtoQuery=this.value; render();" style="width:100%; margin-bottom:10px" />
+    <div style="margin-bottom:12px">
+      ${filtered.slice(0,40).map((p) => {
+        const freq = computeFrequency(p.id);
+        const overdue = freq && freq.overdueRatio >= 1;
+        return `<span class="chip ${state.produtoSelecionado===p.id?"active":""}" onclick="state.produtoSelecionado='${p.id}'; render();">${overdue ? "🔴 " : ""}${esc(p.name)}</span>`;
+      }).join("")}
+    </div>
+    ${historySection}
+  `;
+}
+
+function drawProductCharts() {
+  const history = getProductHistory(state.produtoSelecionado);
+  if (!history.length) return;
+  destroyChart("linha");
+  const ctx1 = document.getElementById("chart-produto-linha");
+  if (ctx1) {
+    charts.linha = new Chart(ctx1, {
+      type: "line",
+      data: { labels: history.map(h=>h.data), datasets: [{ label: "preço", data: history.map(h=>h.preco),
+        borderColor: "#2F6B4F", backgroundColor: "#2F6B4F", tension: 0.2 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }
+  destroyChart("mensal");
+  const buckets = {};
+  for (const h of history) {
+    const m = Number(h.data?.slice(5,7)) - 1;
+    if (isNaN(m)) continue;
+    if (!buckets[m]) buckets[m] = { total: 0, count: 0 };
+    buckets[m].total += h.preco; buckets[m].count += 1;
+  }
+  const labels = MESES.filter((_,i) => buckets[i]);
+  const values = MESES.map((_,i) => buckets[i] ? Number((buckets[i].total/buckets[i].count).toFixed(2)) : null).filter(v=>v!==null);
+  const ctx2 = document.getElementById("chart-produto-mensal");
+  if (ctx2 && labels.length > 1) {
+    charts.mensal = new Chart(ctx2, {
+      type: "bar",
+      data: { labels, datasets: [{ label: "média", data: values, backgroundColor: "#7F77DD" }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }
+}
+
+function renderCategorias() {
+  const counts = {};
+  for (const p of state.products) { const c = p.category || "Outros"; counts[c] = (counts[c]||0)+1; }
+  const list = CATEGORIAS.filter((c) => counts[c]);
+  if (!list.length) return `<p class="muted">Ainda não há categorias com produtos.</p>`;
+  let body = "";
+  if (state.categoriaSelecionada) {
+    const cat = state.categoriaSelecionada;
+    const prodsInCat = state.products.filter((p) => (p.category||"Outros") === cat);
+    const idsInCat = new Set(prodsInCat.map((p) => p.id));
+    let rows = [];
+    for (const inv of state.invoices) {
+      for (const it of inv.itens) {
+        if (idsInCat.has(it.productId)) {
+          const prod = state.products.find((p) => p.id === it.productId);
+          rows.push({ data: inv.data, loja: inv.loja, nome: prod?.name || it.nome, productId: it.productId,
+            preco_unitario: normalizedPrice(it), preco_total: it.preco_total });
+        }
+      }
+    }
+    rows.sort((a,b) => (a.data > b.data ? 1 : -1));
+    const filtro = state.produtoFiltroCategoria;
+    const filtered = filtro === "all" ? rows : rows.filter((r) => r.productId === filtro);
+    const highest = filtered.length ? filtered.reduce((a,b)=>a.preco_unitario>b.preco_unitario?a:b) : null;
+    const lowest = filtered.length ? filtered.reduce((a,b)=>a.preco_unitario<b.preco_unitario?a:b) : null;
+    const yoy = yearComparisonFromHistory(filtered.map(r => ({ data: r.data, preco: r.preco_unitario })));
+    body = `
+      <div class="card">
+        <div class="meta" style="margin-bottom:10px">
+          <span class="muted">produto:</span>
+          <select onchange="state.produtoFiltroCategoria=this.value; render();">
+            <option value="all" ${filtro==="all"?"selected":""}>todos em ${cat}</option>
+            ${prodsInCat.map((p) => `<option value="${p.id}" ${filtro===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}
+          </select>
+        </div>
+        ${!filtered.length ? `<p class="muted">Ainda não há compras nesta categoria.</p>` : `
+          <div class="grid2" style="margin-bottom:10px">
+            ${highest ? `<div class="stat"><div class="label">preço mais alto</div>
+              <div class="value" style="color:var(--red); font-size:14px">${money(highest.preco_unitario)} €
+              <span class="muted" style="font-size:11px">— ${esc(highest.nome)}, ${esc(highest.data)}</span></div></div>` : ""}
+            ${lowest ? `<div class="stat"><div class="label">preço mais baixo</div>
+              <div class="value" style="color:var(--green); font-size:14px">${money(lowest.preco_unitario)} €
+              <span class="muted" style="font-size:11px">— ${esc(lowest.nome)}, ${esc(lowest.data)}</span></div></div>` : ""}
+          </div>
+          ${yoy ? `<p class="muted" style="margin-bottom:10px">
+            ${yoy.thisYear}: ${money(yoy.mediaThis)} € vs ${yoy.lastYear}: ${money(yoy.mediaLast)} €
+            <strong style="color:${yoy.mediaThis > yoy.mediaLast ? 'var(--red)' : 'var(--green)'}">
+              (${yoy.mediaThis > yoy.mediaLast ? "+" : ""}${(((yoy.mediaThis - yoy.mediaLast) / yoy.mediaLast) * 100).toFixed(1)}%)
+            </strong></p>` : ""}
+          <p style="font-weight:500; margin-bottom:2px">gasto por mês</p>
+          <div class="chart-wrap"><canvas id="chart-categoria"></canvas></div>
+          ${filtro === "all" && prodsInCat.length > 1 ? `
+            <p style="font-weight:500; margin-bottom:2px">preços de todos os artigos da categoria</p>
+            <div class="chart-wrap"><canvas id="chart-categoria-linhas"></canvas></div>
+          ` : ""}
+          <table>
+            <thead><tr><th>data</th><th>artigo</th><th>loja</th><th style="text-align:right">preço</th></tr></thead>
+            <tbody>
+              ${filtered.map((h) => `<tr><td>${esc(h.data)}</td><td class="txt">${esc(h.nome)}</td>
+                <td class="txt">${esc(h.loja)}</td><td style="text-align:right">${money(h.preco_unitario)} €</td></tr>`).join("")}
+            </tbody>
+          </table>
+        `}
+      </div>
+    `;
+  }
+  return `
+    <div style="margin-bottom:12px">
+      ${list.map((c) => `<span class="chip ${state.categoriaSelecionada===c?"active":""}"
+        onclick="state.categoriaSelecionada='${c}'; state.produtoFiltroCategoria='all'; render();">${c} (${counts[c]})</span>`).join("")}
+    </div>
+    ${body}
+  `;
+}
+
+function drawCategoryCharts() {
+  const cat = state.categoriaSelecionada;
+  const prodsInCat = state.products.filter((p) => (p.category||"Outros") === cat);
+  const idsInCat = new Set(prodsInCat.map((p) => p.id));
+  const filtro = state.produtoFiltroCategoria;
+
+  const buckets = {};
+  for (const inv of state.invoices) {
+    for (const it of inv.itens) {
+      if (!idsInCat.has(it.productId)) continue;
+      if (filtro !== "all" && it.productId !== filtro) continue;
+      const key = inv.data?.slice(0,7);
+      if (!key) continue;
+      buckets[key] = (buckets[key]||0) + it.preco_total;
+    }
+  }
+  const labels = Object.keys(buckets).sort();
+  destroyChart("categoria");
+  const ctx = document.getElementById("chart-categoria");
+  if (ctx && labels.length) {
+    charts.categoria = new Chart(ctx, {
+      type: "bar",
+      data: { labels, datasets: [{ label: "gasto", data: labels.map((k)=>Number(buckets[k].toFixed(2))), backgroundColor: "#D85A30" }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }
+
+  destroyChart("categoriaLinhas");
+  const ctxLinhas = document.getElementById("chart-categoria-linhas");
+  if (ctxLinhas && filtro === "all" && prodsInCat.length > 1) {
+    const allDates = new Set();
+    const perProduct = {};
+    for (const p of prodsInCat) {
+      const hist = getProductHistory(p.id);
+      if (!hist.length) continue;
+      perProduct[p.id] = hist;
+      hist.forEach((h) => allDates.add(h.data));
+    }
+    const sortedDates = [...allDates].sort();
+    const datasets = Object.entries(perProduct).map(([pid, hist], i) => {
+      const byDate = {};
+      hist.forEach((h) => { byDate[h.data] = h.preco; });
+      const prod = prodsInCat.find((p) => p.id === pid);
+      return {
+        label: prod?.name || "?",
+        data: sortedDates.map((d) => (byDate[d] !== undefined ? byDate[d] : null)),
+        borderColor: PALETA[i % PALETA.length],
+        backgroundColor: PALETA[i % PALETA.length],
+        spanGaps: true, tension: 0.2
+      };
+    });
+    if (sortedDates.length && datasets.length) {
+      charts.categoriaLinhas = new Chart(ctxLinhas, {
+        type: "line",
+        data: { labels: sortedDates, datasets },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } } } }
+      });
+    }
+  }
+}
+
+function renderLista() {
+  const lista = computeShoppingList();
+  const semDadosSuficientes = state.products.length - state.products.filter((p) => computeFrequency(p.id)).length;
+  return `
+    <div class="card">
+      <p class="muted" style="margin-top:0">
+        Com base na frequência com que costumas comprar cada artigo, e em quanto tempo já passou desde a última vez.
+      </p>
+      ${!lista.length ? `<p class="muted">Nada parece estar em falta neste momento — ou ainda não há histórico suficiente (precisa de pelo menos 2 compras do mesmo artigo).</p>` : `
+        <ul class="rank-list">
+          ${lista.map((l) => `
+            <li style="align-items:flex-start; flex-direction:column; gap:2px; padding:8px 0;">
+              <div style="display:flex; justify-content:space-between; width:100%;">
+                <strong>${esc(l.nome)}</strong>
+                <span style="color:${l.overdueRatio >= 1.3 ? 'var(--red)' : 'var(--yellow-text)'}">
+                  ${l.overdueRatio >= 1.3 ? "provavelmente em falta" : "talvez esteja a acabar"}
+                </span>
+              </div>
+              <span class="muted" style="font-size:12px">
+                ${esc(l.categoria)} — costumas comprar a cada ~${Math.round(l.avgInterval)} dias,
+                já passaram ${Math.round(l.daysSince)} desde ${esc(l.lastDate)}
+              </span>
+            </li>
+          `).join("")}
+        </ul>
+      `}
+      ${semDadosSuficientes > 0 ? `<p class="muted" style="margin-top:10px">${semDadosSuficientes} produto(s) ainda sem histórico suficiente para prever frequência.</p>` : ""}
+    </div>
+  `;
+}
+
+function renderResumo() {
+  if (!state.invoices.length) return `<p class="muted">Ainda sem dados — guarda a primeira fatura.</p>`;
+  const total = state.invoices.reduce((s,i)=>s+i.total,0);
+  const { subiram, desceram } = computeRanking();
+  return `
+    <div class="grid2" style="margin-bottom:14px">
+      <div class="stat"><div class="label">faturas guardadas</div><div class="value">${state.invoices.length}</div></div>
+      <div class="stat"><div class="label">gasto total</div><div class="value">${money(total)} €</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+        <p style="font-weight:500; margin:0">gasto por mês</p>
+        <button class="btn btn-dark" onclick="exportExcel()">Exportar Excel</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-resumo"></canvas></div>
+    </div>
+    <div class="card">
+      <p style="font-weight:500; margin-top:0">gasto por categoria</p>
+      <div class="chart-wrap"><canvas id="chart-categoria-pie"></canvas></div>
+    </div>
+    ${subiram.length ? `
+    <div class="card">
+      <p style="font-weight:500; margin-top:0">o que mais subiu de preço</p>
+      <ul class="rank-list">
+        ${subiram.map((r) => `<li><span>${esc(r.nome)}</span><span style="color:var(--red)">+${r.change.toFixed(1)}%</span></li>`).join("")}
+      </ul>
+      <p style="font-weight:500; margin:14px 0 0">o que mais desceu de preço</p>
+      <ul class="rank-list">
+        ${desceram.map((r) => `<li><span>${esc(r.nome)}</span><span style="color:var(--green)">${r.change.toFixed(1)}%</span></li>`).join("")}
+      </ul>
+    </div>` : ""}
+  `;
+}
+function drawResumoChart() {
+  const buckets = {};
+  for (const inv of state.invoices) {
+    const key = inv.data?.slice(0,7);
+    if (!key) continue;
+    buckets[key] = (buckets[key]||0) + inv.total;
+  }
+  const labels = Object.keys(buckets).sort();
+  destroyChart("resumo");
+  const ctx = document.getElementById("chart-resumo");
+  if (ctx && labels.length) {
+    charts.resumo = new Chart(ctx, {
+      type: "bar",
+      data: { labels, datasets: [{ label: "gasto", data: labels.map((k)=>Number(buckets[k].toFixed(2))), backgroundColor: "#D85A30" }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }
+}
+function drawCategoriaPieChart() {
+  const buckets = {};
+  for (const inv of state.invoices) {
+    for (const it of inv.itens) {
+      const prod = state.products.find((p) => p.id === it.productId);
+      const cat = prod?.category || "Outros";
+      buckets[cat] = (buckets[cat] || 0) + it.preco_total;
+    }
+  }
+  const labels = Object.keys(buckets);
+  destroyChart("categoriaPie");
+  const ctx = document.getElementById("chart-categoria-pie");
+  if (ctx && labels.length) {
+    charts.categoriaPie = new Chart(ctx, {
+      type: "doughnut",
+      data: { labels, datasets: [{ data: labels.map((k)=>Number(buckets[k].toFixed(2))), backgroundColor: PALETA }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } } } }
+    });
+  }
+}
+
+render();
+</script>
+</body>
+</html>
